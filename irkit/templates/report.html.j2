@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="{{ tool.name }} {{ tool.version }}">
+  <title>{{ report_title }} — {{ investigation.hostname }}</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --ink: #1a202c;
+      --muted: #5b6777;
+      --line: #d9e0e8;
+      --accent: #123b5d;
+      --accent-soft: #e8f0f7;
+      --critical: #b3123b;
+      --high: #d9480f;
+      --medium: #b7791f;
+      --low: #2b6cb0;
+      --info: #4a5568;
+      --ok: #2f855a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    a { color: var(--accent); }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 22px 60px; }
+    header.hero {
+      background: linear-gradient(135deg, #0f2c45 0%, #164b72 62%, #1f6b8f 100%);
+      color: #fff;
+      border-radius: 14px;
+      padding: 30px 32px;
+      box-shadow: 0 10px 30px rgba(15, 44, 69, .22);
+    }
+    header.hero h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: .2px; }
+    header.hero .sub { color: #d6e6f2; font-size: 14px; }
+    .hero-grid { display: flex; flex-wrap: wrap; gap: 18px 40px; margin-top: 20px; }
+    .hero-item { min-width: 180px; }
+    .hero-item .label { color: #b9d2e4; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
+    .hero-item .value { font-size: 16px; font-weight: 600; word-break: break-word; }
+    .badge {
+      display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px;
+      font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: #fff;
+    }
+    .badge.severity-critical { background: var(--critical); }
+    .badge.severity-high { background: var(--high); }
+    .badge.severity-medium { background: var(--medium); }
+    .badge.severity-low { background: var(--low); }
+    .badge.severity-informational { background: var(--info); }
+    .badge.status-ok { background: var(--ok); }
+    .badge.status-partial { background: var(--medium); }
+    .badge.status-error { background: var(--critical); }
+    .badge.status-skipped { background: var(--info); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin: 22px 0; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 16px 18px; box-shadow: 0 2px 8px rgba(26, 32, 44, .04);
+    }
+    .card .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
+    .card .v { font-size: 25px; font-weight: 750; margin-top: 4px; }
+    .card .h { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .risk-card { border-left: 5px solid {{ risk.rating | rating_color }}; }
+    .risk-card .v { color: {{ risk.rating | rating_color }}; }
+    section { margin-top: 30px; }
+    section > h2 {
+      font-size: 18px; margin: 0 0 12px; padding-bottom: 7px; border-bottom: 2px solid var(--line);
+      letter-spacing: .2px;
+    }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 13px 16px; border-radius: 6px; }
+    .callout.warn { border-left-color: var(--medium); background: #fdf6e7; }
+    .callout.danger { border-left-color: var(--critical); background: #fbeaef; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; background: #f8fafc; }
+    tr:last-child td { border-bottom: 0; }
+    .finding {
+      background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--info);
+      border-radius: 9px; margin-bottom: 12px; overflow: hidden;
+    }
+    .finding.severity-critical { border-left-color: var(--critical); }
+    .finding.severity-high { border-left-color: var(--high); }
+    .finding.severity-medium { border-left-color: var(--medium); }
+    .finding.severity-low { border-left-color: var(--low); }
+    .finding summary {
+      cursor: pointer; list-style: none; padding: 14px 16px; display: flex; flex-wrap: wrap;
+      gap: 8px 14px; align-items: baseline;
+    }
+    .finding summary::-webkit-details-marker { display: none; }
+    .finding .title { font-weight: 650; flex: 1 1 420px; }
+    .finding .meta { color: var(--muted); font-size: 12px; }
+    .finding .body { padding: 0 16px 16px; border-top: 1px solid var(--line); }
+    .finding .body h4 { margin: 14px 0 5px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+    .finding .body p { margin: 4px 0; }
+    pre {
+      background: #0f1b26; color: #dce7f1; padding: 13px 15px; border-radius: 7px;
+      overflow: auto; font-size: 12px; line-height: 1.45;
+    }
+    code { background: #eef2f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+    .chips li { background: #eef2f6; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; font-size: 11px; }
+    .integrity-ok { color: var(--ok); font-weight: 650; }
+    .integrity-bad { color: var(--critical); font-weight: 650; }
+    footer { margin-top: 34px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+    @media print {
+      body { background: #fff; }
+      .page { max-width: none; padding: 0; }
+      header.hero { box-shadow: none; border-radius: 0; }
+      .finding, .panel, .card { break-inside: avoid; }
+      .finding[open] summary { border-bottom: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="hero">
+    <h1>{{ report_title }}</h1>
+    <div class="sub">
+      Host <strong>{{ investigation.hostname }}</strong> ·
+      Generated {{ investigation.generated_at }} ·
+      {{ tool.name }} v{{ tool.version }}
+    </div>
+    <div class="hero-grid">
+      <div class="hero-item">
+        <div class="label">Investigation</div>
+        <div class="value mono">{{ investigation.id }}</div>
+      </div>
+      <div class="hero-item">
+        <div class="label">Risk rating</div>
+        <div class="value">{{ risk.rating }} <span class="small">({{ risk.score }}/100)</span></div>
+      </div>
+      <div class="hero-item">
+        <div class="label">Overall severity</div>
+        <div class="value"><span class="badge severity-{{ risk.overall_severity }}">{{ risk.overall_severity }}</span></div>
+      </div>
+      <div class="hero-item">
+        <div class="label">Mode</div>
+        <div class="value">{{ investigation.mode | default("read-only") }}</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="cards">
+    <div class="card risk-card">
+      <div class="k">Risk score</div>
+      <div class="v">{{ risk.score }}</div>
+      <div class="h">{{ risk.rating }} · weighted {{ risk.weighted_score }}</div>
+    </div>
+    <div class="card">
+      <div class="k">Findings</div>
+      <div class="v">{{ summary.findings }}</div>
+      <div class="h">{{ severity_counts.critical }} critical · {{ severity_counts.high }} high</div>
+    </div>
+    <div class="card">
+      <div class="k">Evidence records</div>
+      <div class="v">{{ summary.evidence }}</div>
+      <div class="h">hash-on-collection metadata</div>
+    </div>
+    <div class="card">
+      <div class="k">Collectors</div>
+      <div class="v">{{ summary.collectors.total }}</div>
+      <div class="h">
+        {% for status, count in summary.collectors.status_counts.items() %}{{ status }}={{ count }}{% if not loop.last %} · {% endif %}{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% if errors %}
+  <div class="callout danger">
+    <strong>Collection errors.</strong> {{ errors | length }} collector error(s) were recorded. Review the collector table below; missing data is reported explicitly rather than guessed.
+  </div>
+  {% endif %}
+  {% if warnings %}
+  <div class="callout warn" style="margin-top:12px">
+    <strong>Collection warnings.</strong> {{ warnings | length }} warning(s) were recorded. These commonly indicate missing privileges, unavailable utilities or absent log sources.
+  </div>
+  {% endif %}
+
+  <section>
+    <h2>Executive summary</h2>
+    <div class="panel">
+      <p>
+        This report records a <strong>read-only</strong> investigation of
+        <strong>{{ investigation.hostname }}</strong> ({{ investigation.root }}), executed as
+        {{ "root" if investigation.is_root else "an unprivileged user" }}.
+        {{ summary.findings }} finding(s) were produced, of which
+        {{ severity_counts.critical }} are critical, {{ severity_counts.high }} high,
+        {{ severity_counts.medium }} medium, {{ severity_counts.low }} low and
+        {{ severity_counts.informational }} informational.
+      </p>
+      <p class="muted">
+        Findings are <strong>indicators, not proof of compromise</strong>. Validate each item
+        against change records, package provenance and the asset owner's context before taking
+        action. No files were modified, no processes were signalled and no evidence was uploaded.
+      </p>
+      <p class="small muted">
+        Risk formula: <span class="mono">{{ risk.formula }}</span>
+      </p>
+    </div>
+  </section>
+
+  {% if top_findings %}
+  <section>
+    <h2>Top findings</h2>
+    <div class="panel">
+      <table>
+        <thead><tr><th>ID</th><th>Severity</th><th>Finding</th><th>Collector</th></tr></thead>
+        <tbody>
+        {% for item in top_findings %}
+          <tr>
+            <td class="mono">{{ item.finding_id }}</td>
+            <td><span class="badge severity-{{ item.severity }}">{{ item.severity }}</span></td>
+            <td>{{ item.title }}<div class="small muted">{{ item.description }}</div></td>
+            <td>{{ item.collector }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Findings by severity</h2>
+    <div class="cards">
+      {% for severity in severity_order %}
+      <div class="card">
+        <div class="k">{{ severity }}</div>
+        <div class="v" style="color: {{ severity | severity_color }}">{{ severity_counts.get(severity, 0) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2>Detailed findings</h2>
+    {% if findings %}
+      {% for finding in findings %}
+      <details class="finding severity-{{ finding.severity }}" {% if finding.severity in ["critical", "high"] %}open{% endif %}>
+        <summary>
+          <span class="badge severity-{{ finding.severity }}">{{ finding.severity }}</span>
+          <span class="title">{{ finding.title }}</span>
+          <span class="meta mono">{{ finding.finding_id }}</span>
+          <span class="meta">{{ finding.collector }} · {{ finding.detected_at }}</span>
+        </summary>
+        <div class="body">
+          <h4>Observation</h4>
+          <p>{{ finding.description }}</p>
+          <h4>Why this was flagged</h4>
+          <p>{{ finding.why }}</p>
+          <h4>False-positive considerations</h4>
+          <ul class="chips">
+            {% for item in finding.false_positives %}<li>{{ item }}</li>{% endfor %}
+          </ul>
+          <h4>Recommended remediation</h4>
+          <p>{{ finding.remediation }}</p>
+          <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin: 14px 0 0;">
+            <div><div class="k">Rule</div><div class="mono small">{{ finding.rule_id }}</div></div>
+            <div><div class="k">Confidence</div><div class="small">{{ finding.confidence }}</div></div>
+            <div><div class="k">Category</div><div class="small">{{ finding.category }}</div></div>
+            <div><div class="k">MITRE ATT&amp;CK</div><div class="small">{{ finding.mitre | join(", ") if finding.mitre else "—" }}</div></div>
+          </div>
+          {% if finding.evidence_refs %}
+          <h4>Evidence references</h4>
+          <p class="mono small">{{ finding.evidence_refs | join(", ") }}</p>
+          {% endif %}
+          {% if finding.details %}
+          <h4>Details</h4>
+          <pre>{{ finding.details | pretty_json }}</pre>
+          {% endif %}
+        </div>
+      </details>
+      {% endfor %}
+    {% else %}
+      <div class="panel muted">No findings were produced. This does not prove the host is clean: missing privileges, absent logs and unsupported features limit coverage.</div>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Collector results</h2>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Collector</th><th>Status</th><th>Duration</th><th>Findings</th><th>Evidence</th><th>Warnings / errors</th></tr></thead>
+        <tbody>
+        {% for collector in collectors %}
+          <tr>
+            <td><strong>{{ collector.name }}</strong><div class="small muted">{{ collector.description }}</div></td>
+            <td><span class="badge status-{{ collector.status }}">{{ collector.status }}</span></td>
+            <td class="mono small">{{ collector.duration_ms }} ms</td>
+            <td>{{ collector.finding_ids | length }}</td>
+            <td>{{ collector.evidence_ids | length }}</td>
+            <td class="small">
+              {% for item in collector.errors %}<div class="integrity-bad">{{ item }}</div>{% endfor %}
+              {% for item in collector.warnings %}<div class="muted">{{ item }}</div>{% endfor %}
+              {% if not collector.errors and not collector.warnings %}—{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Evidence register</h2>
+    <div class="panel">
+      <p class="small muted">
+        Evidence is recorded with its source path, collection timestamp and SHA-256 digest where
+        hashing is appropriate. Secret-bearing files (for example <code>/etc/shadow</code> and
+        private keys) are recorded by metadata only; their content is never copied or digested.
+      </p>
+      {% if evidence %}
+      <table>
+        <thead><tr><th>ID</th><th>Kind</th><th>Source / command</th><th>Collected</th><th>SHA-256</th><th>Notes</th></tr></thead>
+        <tbody>
+        {% for item in evidence %}
+          <tr>
+            <td class="mono">{{ item.evidence_id }}</td>
+            <td>{{ item.kind }}</td>
+            <td class="mono small">{{ item.source_path or item.command or "—" }}<div class="muted">{{ item.description }}</div></td>
+            <td class="mono small">{{ item.collected_at }}</td>
+            <td class="mono small">{{ item.sha256 or "—" }}</td>
+            <td class="small">{{ item.notes or "—" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">No evidence records were produced.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if warnings or errors %}
+  <section>
+    <h2>Collection diagnostics</h2>
+    <div class="panel">
+      {% for item in errors %}
+      <p><span class="badge status-error">error</span> <strong>{{ item.collector }}</strong>: {{ item.message }}</p>
+      {% endfor %}
+      {% for item in warnings %}
+      <p><span class="badge status-partial">warning</span> <strong>{{ item.collector }}</strong>: {{ item.message }}</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Integrity and methodology</h2>
+    <div class="panel">
+      <p>
+        <strong>Document integrity:</strong>
+        {% if integrity_valid %}
+          <span class="integrity-ok">SHA-256 verified</span>
+        {% else %}
+          <span class="integrity-bad">not verified</span>
+        {% endif %}
+        <span class="mono small">{{ integrity.get("sha256") or "no digest present" }}</span>
+      </p>
+      <p class="small muted">{{ integrity.get("scope") or "" }}</p>
+      <p class="small">{{ document.get("methodology", {}).get("description", "") }}</p>
+      <p class="small muted">{{ document.methodology.finding_policy }}</p>
+      <p class="small muted">
+        Redaction: {{ investigation.redaction.note }} Evidence upload: disabled.
+        Report rendered at {{ rendered_at }}.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Limitations and ethical use</h2>
+    <div class="panel">
+      <p class="small">
+        This toolkit is intended for authorised incident response, forensic triage and defensive
+        security work only. Obtain explicit written authorisation before examining any system you
+        do not own or operate. Findings are observations derived from the state of the host at
+        collection time; they can be incomplete, stale or explained by legitimate administration.
+      </p>
+      <p class="small muted">
+        Unprivileged collection cannot see all processes, sockets, logs or account databases.
+        Containers, network namespaces, immutable filesystems, tampered binaries and anti-forensic
+        activity can all reduce visibility. Absence of a finding is not evidence of integrity.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    {{ tool.name }} v{{ tool.version }} · schema {{ tool.schema_version }} ·
+    investigation {{ investigation.id }} · generated {{ investigation.generated_at }}
+  </footer>
+</div>
+</body>
+</html>
